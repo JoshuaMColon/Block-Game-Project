@@ -5,95 +5,219 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JS Mini Game</title>
     <style>
-        body { margin: 0; background: #222; display: flex; justify-content: center; align-items: cneter; height: 100vh; overflow: hidden; color: white; font-family: sans-serif; }
+        body {
+            margin: 0;
+            background: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            color: white;
+            font-family: sans-serif;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            width: 100%;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-top: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+        }
     </style>
 </head>
 <body>
-    <div id ="ui" style = "position: absolute; top: 20px; text-align: center;">
-        <h1> Score: <span id = "score" >0</span></h1>
-        <p> Move your mouse to dodge the red blocks! </p>
-    </div>
-    <canvas id ="gameCanvas"></canvas>
+
+<div id="ui">
+    <h1>Score: <span id="score">0</span></h1>
+    <h2>Level: <span id="level">1</span></h2>
+    <button id="startBtn">Start Game</button>
+    <button id="pauseBtn" style="display:none;">Pause</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
 <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const scoreElement = document.getElementById("score")
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-    canvas.width = 400;
-    canvas.height = 500;
+// Base resolution (kept constant internally)
+canvas.width = 400;
+canvas.height = 500;
 
-    let score = 0;
-    let gameActive = true;
+// Responsive scaling
+function resizeCanvas() {
+    const scale = Math.min(
+        window.innerWidth / 400,
+        window.innerHeight / 500
+    );
 
-    //Player Object
-    const player = { x: 200, y: 450, size: 20, color: "#00ffcc"};
+    canvas.style.width = 400 * scale + "px";
+    canvas.style.height = 500 * scale + "px";
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
 
-    //Enemy Array
-    const enemies = [];
+const scoreElement = document.getElementById("score");
+const levelElement = document.getElementById("level");
+const startBtn = document.getElementById("startBtn");
+const pauseBtn = document.getElementById("pauseBtn");
 
-    //Track Mouse
-    window.addEventListener("mousemove", (e) => {
-        const rect = canvas.getBoundingClientRect();
-        player.x = e.clientX - rect.left - player.size / 2;
-    });
+let score = 0;
+let level = 1;
+let gameActive = false;
+let paused = false;
 
-    function spawnEnemy() {
-        if(!gameActive) return;
-        const size = Math.random() * 30 + 10;
-        enemies.push ({
-            x: Math.random() * (canvas.width - size),
-            y: -size,
-            size: size,
-            speed: Math.random() * 3 + 2
+// Player
+const player = { x: 200, y: 450, size: 20, color: "#00ffcc" };
+
+// Enemies
+const enemies = [];
+let enemySpawnRate = 600;
+
+// Particles
+const particles = [];
+
+function createExplosion(x, y, color) {
+    for (let i = 0; i < 15; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            size: Math.random() * 4 + 2,
+            speedX: (Math.random() - 0.5) * 4,
+            speedY: (Math.random() - 0.5) * 4,
+            alpha: 1,
+            color: color
         });
-        setTimeout(spawnEnemy, 600); //Spawn every 0.6 seconds
     }
+}
 
-    function update() {
-        if(!gameActive) return;
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.speedX;
+        p.y += p.speedY;
+        p.alpha -= 0.03;
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+        ctx.globalAlpha = 1;
 
-        //Draw Player
-        ctx.fillStyle = player.color;
-        ctx.fillRect(player.x, player.y, player.size, player.size);
-
-        //Update & Draw Enemies
-        for(let i = enemies.length - 1; i >= 0, i--;) {
-            let e = enemies[i];
-            e.y += e.speed;
-
-            ctx.fillStyle = "#ff4444";
-            ctx.fillRect(e.x, e.y, e.size, e.size);
-
-            //Collision Detection
-            if(player.x < e.x + e.size && player.x + player.size > e.x &&
-                player.y < e.y + e.size && player.y + player.size > e.y) {
-                gameActive = false;
-                alert("Game Over! Score: " + score);
-                location.reload(); //Restart
-            }
-
-            //Remove off-screen enemies and score points
-            if(e.y > canvas.height) {
-                enemies.splice(i, 1);
-                score++;
-                scoreElement.innerText = score;
-            }
-        }
-        requestAnimationFrame(update);
+        if (p.alpha <= 0) particles.splice(i, 1);
     }
+}
 
+// Mouse movement
+window.addEventListener("mousemove", (e) => {
+    if (!gameActive || paused) return;
+    const rect = canvas.getBoundingClientRect();
+    player.x = e.clientX - rect.left - player.size / 2;
+});
+
+// Mobile touch controls
+window.addEventListener("touchmove", (e) => {
+    if (!gameActive || paused) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    player.x = touch.clientX - rect.left - player.size / 2;
+});
+
+// Start button
+startBtn.addEventListener("click", () => {
+    startBtn.style.display = "none";
+    pauseBtn.style.display = "inline-block";
+    gameActive = true;
+    paused = false;
     spawnEnemy();
     update();
+});
 
-/* How the logic works:
-1. The Canvas Context (ctx): Think of this as the "paintbrush" that draws the rectangles.
+// Pause button
+pauseBtn.addEventListener("click", () => {
+    paused = !paused;
+    pauseBtn.innerText = paused ? "Resume" : "Pause";
+});
 
-2. requestAnimationFrame: This is a high-performance loop that tells the browser, "Run this function as fast as you can draw a frame" (usually 60 times per second).
+// Spawn enemies
+function spawnEnemy() {
+    if (!gameActive || paused) return;
 
-3. Collision Logic: We use a basic "AABB" (Axis-Aligned Bounding Box) check. It basically asks: Is the player's left side to the left of the enemy's right side? (and so on for all four sides). */
+    const size = Math.random() * 30 + 10;
+    enemies.push({
+        x: Math.random() * (canvas.width - size),
+        y: -size,
+        size: size,
+        speed: Math.random() * 2 + (1 + level * 0.5)
+    });
 
+    setTimeout(spawnEnemy, enemySpawnRate);
+}
+
+// Level system
+function updateLevel() {
+    level = Math.floor(score / 10) + 1;
+    levelElement.innerText = level;
+
+    enemySpawnRate = Math.max(200, 600 - level * 40);
+}
+
+// Game loop
+function update() {
+    if (!gameActive) return;
+    if (paused) return requestAnimationFrame(update);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Player glow effect
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = player.color;
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.shadowBlur = 0;
+
+    // Update enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let e = enemies[i];
+        e.y += e.speed;
+
+        ctx.fillStyle = "#ff4444";
+        ctx.fillRect(e.x, e.y, e.size, e.size);
+
+        // Collision
+        if (
+            player.x < e.x + e.size &&
+            player.x + player.size > e.x &&
+            player.y < e.y + e.size &&
+            player.y + player.size > e.y
+        ) {
+            createExplosion(player.x + player.size/2, player.y, player.color);
+            alert("Game Over! Score: " + score);
+            location.reload();
+        }
+
+        // Off-screen enemy
+        if (e.y > canvas.height) {
+            createExplosion(e.x + e.size/2, e.y, "#ff4444");
+            enemies.splice(i, 1);
+            score++;
+            scoreElement.innerText = score;
+            updateLevel();
+        }
+    }
+
+    updateParticles();
+    requestAnimationFrame(update);
+}
 </script>
+
 </body>
 </html>
