@@ -32,6 +32,21 @@
             border: none;
             border-radius: 6px;
         }
+
+        /* Game Over Screen */
+        #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85);
+            padding: 30px 40px;
+            border-radius: 12px;
+            text-align: center;
+            display: none;
+            color: white;
+            font-size: 26px;
+        }
     </style>
 </head>
 <body>
@@ -43,13 +58,19 @@
     <button id="pauseBtn" style="display:none;">Pause</button>
 </div>
 
+<!-- Game Over Overlay -->
+<div id="gameOverScreen">
+    <p id="gameOverText">Game Over!</p>
+    <button id="restartBtn" style="margin-top: 15px; font-size: 20px;">Restart</button>
+</div>
+
 <canvas id="gameCanvas"></canvas>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// Base resolution (kept constant internally)
+// Base resolution
 canvas.width = 400;
 canvas.height = 500;
 
@@ -70,6 +91,10 @@ const scoreElement = document.getElementById("score");
 const levelElement = document.getElementById("level");
 const startBtn = document.getElementById("startBtn");
 const pauseBtn = document.getElementById("pauseBtn");
+
+const gameOverScreen = document.getElementById("gameOverScreen");
+const gameOverText = document.getElementById("gameOverText");
+const restartBtn = document.getElementById("restartBtn");
 
 let score = 0;
 let level = 1;
@@ -147,6 +172,11 @@ pauseBtn.addEventListener("click", () => {
     pauseBtn.innerText = paused ? "Resume" : "Pause";
 });
 
+// Restart button
+restartBtn.addEventListener("click", () => {
+    location.reload();
+});
+
 // Spawn enemies
 function spawnEnemy() {
     if (!gameActive || paused) return;
@@ -200,8 +230,12 @@ function update() {
             player.y + player.size > e.y
         ) {
             createExplosion(player.x + player.size/2, player.y, player.color);
-            alert("Game Over! Score: " + score);
-            location.reload();
+
+            gameActive = false;
+            paused = true;
+
+            gameOverText.innerText = "Game Over! Score: " + score;
+            gameOverScreen.style.display = "block";
         }
 
         // Off-screen enemy
